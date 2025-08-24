@@ -14,7 +14,7 @@ warnings.filterwarnings('ignore')
 class GPUFraudDataLoader:
     """GPU-optimized data loading with memory management"""
     
-    def __init__(self, data_path='/kaggle/input/paysim1/PS_20174392719_1491204439457_log.csv'):
+    def __init__(self, data_path='/kaggle/input/my-dataset/fraud_data.csv'):
         self.data_path = data_path
         self.df = None
         self.metadata = {}
