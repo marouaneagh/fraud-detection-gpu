@@ -144,31 +144,11 @@ def main():
     
     print("\n📋 GPU-OPTIMIZED PIPELINE STEPS:")
     steps = [
-        {
-            'module': '01_data_loader_gpu',
-            'title': 'GPU DATA LOADING & VALIDATION',
-            'description': 'CuPy-accelerated data loading with GPU memory optimization'
-        },
-        {
-            'module': '02_feature_engineer_gpu', 
-            'title': 'GPU FEATURE ENGINEERING',
-            'description': 'GPU-accelerated feature creation for precision optimization'
-        },
-        {
-            'module': '03_data_splitter_gpu',
-            'title': 'GPU DATA SPLITTING & SAMPLING',
-            'description': 'GPU-optimized balanced sampling with memory management'
-        },
-        {
-            'module': '04_hyperparameter_optimizer_gpu',
-            'title': 'GPU HYPERPARAMETER OPTIMIZATION',
-            'description': 'Ultra-fast Optuna + XGBoost GPU optimization'
-        },
-        {
-            'module': '05_final_trainer_gpu',
-            'title': 'GPU FINAL MODEL TRAINING',
-            'description': 'GPU-accelerated training with comprehensive evaluation'
-        }
+        {'module': 'data_loader', 'title': 'GPU DATA LOADING & VALIDATION', 'description': 'Load and validate transaction data with GPU acceleration'},
+        {'module': 'feature_engineer_gpu', 'title': 'GPU FEATURE ENGINEERING', 'description': 'Create precision-focused features using GPU computation'},
+        {'module': 'data_splitter_gpu', 'title': 'GPU DATA SPLITTING & SAMPLING', 'description': 'Create balanced datasets with GPU-optimized sampling'},
+        {'module': 'hyperparameter_optimizer_gpu', 'title': 'GPU HYPERPARAMETER OPTIMIZATION', 'description': 'Ultra-fast precision optimization using GPU XGBoost + Optuna'},
+        {'module': 'final_trainer_gpu', 'title': 'GPU FINAL MODEL TRAINING', 'description': 'Train production-ready model with comprehensive GPU evaluation'}
     ]
     
     for i, step in enumerate(steps, 1):
@@ -366,11 +346,11 @@ def run_single_gpu_step(step_number):
     """Run a single GPU-optimized step"""
     
     gpu_steps = [
-        '01_data_loader_gpu',
-        '02_feature_engineer_gpu', 
-        '03_data_splitter_gpu',
-        '04_hyperparameter_optimizer_gpu',
-        '05_final_trainer_gpu'
+        'data_loader',
+        'feature_engineer_gpu', 
+        'data_splitter_gpu',
+        'hyperparameter_optimizer_gpu',
+        'final_trainer_gpu'
     ]
     
     if step_number < 1 or step_number > len(gpu_steps):
