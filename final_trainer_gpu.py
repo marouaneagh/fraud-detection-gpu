@@ -25,6 +25,7 @@ class GPUFinalModelTrainer:
     def __init__(self, checkpoint_dir='/kaggle/working'):
         self.checkpoint_dir = checkpoint_dir
         self.splits = None
+        self.split_metadata = None
         self.best_params = None
         self.optimization_metadata = None
         self.final_model = None
