@@ -44,7 +44,11 @@ class GPUHyperparameterOptimizer:
         self.split_metadata = None
         self.best_params = None
         self.optimization_history = []
-        self.gpu_available = GPU_AVAILABLE and self._check_gpu()
+        
+        # 🔧 FIX: Set gpu_available BEFORE calling _check_gpu()
+        self.gpu_available = GPU_AVAILABLE  # Set first
+        if self.gpu_available:
+            self.gpu_available = self._check_gpu()  # Then check
         
         # REALISTIC targets for fraud detection
         self.targets = {
@@ -60,8 +64,7 @@ class GPUHyperparameterOptimizer:
         
     def _check_gpu(self):
         """Check GPU availability for XGBoost"""
-        if not self.gpu_available:
-            return False
+        # 🔧 FIX: Don't reference self.gpu_available here
         try:
             # Test GPU XGBoost
             test_model = xgb.XGBClassifier(
@@ -78,7 +81,7 @@ class GPUHyperparameterOptimizer:
         except Exception as e:
             print(f"⚠️ GPU XGBoost test failed: {e}")
             return False
-    
+        
     def load_checkpoint(self):
         """Load data splits from Step 3"""
         print("📄 STEP 4: REALISTIC HYPERPARAMETER OPTIMIZATION")
