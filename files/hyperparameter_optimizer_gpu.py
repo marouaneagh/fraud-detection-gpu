@@ -115,7 +115,7 @@ class GPUHyperparameterOptimizer:
             return False
     
     def create_realistic_objective_function(self):
-        """Create objective function focused on REALISTIC precision targets"""
+        """FIXED objective function for extreme imbalance"""
         
         X_train = self.splits['X_train_balanced']
         y_train = self.splits['y_train_balanced']
@@ -123,123 +123,83 @@ class GPUHyperparameterOptimizer:
         y_val = self.splits['y_val']
         
         def realistic_precision_objective(trial):
-            """Objective targeting realistic 30-55% precision"""
-            
-            try:
-                # GPU-optimized hyperparameters
-                if self.gpu_available:
-                    params = {
-                        'tree_method': 'gpu_hist',
-                        'gpu_id': 0,
-                        'objective': 'binary:logistic',
-                        'eval_metric': 'aucpr',  # Focus on precision-recall
-                        'verbosity': 0,
-                        'random_state': 42,
-                        
-                        # Core hyperparameters
-                        'n_estimators': trial.suggest_int('n_estimators', 100, 800),
-                        'max_depth': trial.suggest_int('max_depth', 3, 8),
-                        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
-                        'subsample': trial.suggest_float('subsample', 0.6, 0.95),
-                        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 0.95),
-                        'min_child_weight': trial.suggest_int('min_child_weight', 1, 10),
-                        'reg_alpha': trial.suggest_float('reg_alpha', 0.0, 1.0),
-                        'reg_lambda': trial.suggest_float('reg_lambda', 0.1, 2.0),
-                        
-                        # Class imbalance handling
-                        'scale_pos_weight': trial.suggest_float('scale_pos_weight', 1.0, 50.0)
-                    }
-                else:
-                    # CPU fallback parameters
-                    params = {
-                        'tree_method': 'hist',
-                        'objective': 'binary:logistic',
-                        'eval_metric': 'aucpr',
-                        'verbosity': 0,
-                        'random_state': 42,
-                        'n_jobs': -1,
-                        
-                        'n_estimators': trial.suggest_int('n_estimators', 100, 500),
-                        'max_depth': trial.suggest_int('max_depth', 3, 6),
-                        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.15, log=True),
-                        'subsample': trial.suggest_float('subsample', 0.7, 0.9),
-                        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.7, 0.9),
-                        'min_child_weight': trial.suggest_int('min_child_weight', 1, 7),
-                        'reg_alpha': trial.suggest_float('reg_alpha', 0.0, 0.5),
-                        'reg_lambda': trial.suggest_float('reg_lambda', 0.1, 1.0),
-                        'scale_pos_weight': trial.suggest_float('scale_pos_weight', 1.0, 30.0)
-                    }
+                """Objective targeting realistic 30-45% precision"""
                 
-                # Train model
-                model = xgb.XGBClassifier(**params)
-                model.fit(X_train, y_train)
-                
-                # Predict probabilities
-                y_val_proba = model.predict_proba(X_val)[:, 1]
-                
-                # Find optimal threshold for precision-recall trade-off
-                thresholds = np.arange(0.1, 0.9, 0.05)
-                best_score = -1
-                best_metrics = {}
-                
-                for threshold in thresholds:
-                    y_val_pred = (y_val_proba >= threshold).astype(int)
+                try:
+                    # CRITICAL FIX: Higher scale_pos_weight for 1:336 imbalance
+                    if self.gpu_available:
+                        params = {
+                            'tree_method': 'gpu_hist',
+                            'gpu_id': 0,
+                            'objective': 'binary:logistic',
+                            'eval_metric': 'aucpr',
+                            'verbosity': 0,
+                            'random_state': 42,
+                            
+                            # Core hyperparameters
+                            'n_estimators': trial.suggest_int('n_estimators', 300, 1000),
+                            'max_depth': trial.suggest_int('max_depth', 4, 10),
+                            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.15, log=True),
+                            'subsample': trial.suggest_float('subsample', 0.7, 0.95),
+                            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.7, 0.95),
+                            'min_child_weight': trial.suggest_int('min_child_weight', 1, 10),
+                            'reg_alpha': trial.suggest_float('reg_alpha', 0.0, 1.0),
+                            'reg_lambda': trial.suggest_float('reg_lambda', 0.1, 2.0),
+                            
+                            # CRITICAL FIX: Much higher scale_pos_weight for extreme imbalance
+                            'scale_pos_weight': trial.suggest_float('scale_pos_weight', 50, 200)
+                        }
+                    else:
+                        # CPU fallback parameters
+                        params = {
+                            'tree_method': 'hist',
+                            'objective': 'binary:logistic',
+                            'eval_metric': 'aucpr',
+                            'verbosity': 0,
+                            'random_state': 42,
+                            'n_jobs': -1,
+                            
+                            'n_estimators': trial.suggest_int('n_estimators', 200, 600),
+                            'max_depth': trial.suggest_int('max_depth', 4, 8),
+                            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.15, log=True),
+                            'subsample': trial.suggest_float('subsample', 0.7, 0.9),
+                            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.7, 0.9),
+                            'min_child_weight': trial.suggest_int('min_child_weight', 1, 7),
+                            'reg_alpha': trial.suggest_float('reg_alpha', 0.0, 0.5),
+                            'reg_lambda': trial.suggest_float('reg_lambda', 0.1, 1.0),
+                            
+                            # CRITICAL FIX: Higher range for CPU too
+                            'scale_pos_weight': trial.suggest_float('scale_pos_weight', 50, 150)
+                        }
                     
-                    if y_val_pred.sum() == 0:  # No positive predictions
-                        continue
+                    # Train model
+                    model = xgb.XGBClassifier(**params)
+                    model.fit(X_train, y_train)
                     
-                    # Calculate metrics
+                    # CRITICAL FIX: Use default threshold, don't optimize here
+                    y_val_pred = model.predict(X_val)  # Uses 0.5 threshold
+                    
+                    # Calculate metrics with default threshold
                     precision = precision_score(y_val, y_val_pred, zero_division=0)
                     recall = recall_score(y_val, y_val_pred, zero_division=0)
                     f1 = f1_score(y_val, y_val_pred, zero_division=0)
                     
-                    # Calculate false positive rate
-                    tn = ((y_val == 0) & (y_val_pred == 0)).sum()
-                    fp = ((y_val == 0) & (y_val_pred == 1)).sum()
-                    fpr = fp / (fp + tn) if (fp + tn) > 0 else 1.0
+                    # Store metrics
+                    trial.set_user_attr('precision', precision)
+                    trial.set_user_attr('recall', recall)
+                    trial.set_user_attr('f1', f1)
+                    trial.set_user_attr('threshold', 0.5)  # Fixed threshold
                     
-                    # REALISTIC scoring function
-                    if (precision >= self.targets['precision_min'] and 
-                        recall >= self.targets['recall_min'] and
-                        fpr <= self.targets['fpr_max']):
-                        
-                        # Score prioritizing precision within realistic ranges
-                        precision_score_component = min(precision / self.targets['precision_ideal'], 1.0) * 40
-                        recall_score_component = min(recall / self.targets['recall_ideal'], 1.0) * 20
-                        f1_score_component = f1 * 20
-                        fpr_penalty = max(0, fpr - self.targets['fpr_max']) * 100
-                        
-                        score = precision_score_component + recall_score_component + f1_score_component - fpr_penalty
-                        
-                        if score > best_score:
-                            best_score = score
-                            best_metrics = {
-                                'threshold': threshold,
-                                'precision': precision,
-                                'recall': recall,
-                                'f1': f1,
-                                'fpr': fpr,
-                                'score': score
-                            }
-                
-                # Store metrics for this trial
-                if best_metrics:
-                    for key, value in best_metrics.items():
-                        trial.set_user_attr(key, value)
-                    return best_score
-                else:
-                    # Penalize trials that don't meet minimum requirements
-                    trial.set_user_attr('threshold', 0.5)
-                    trial.set_user_attr('precision', 0.0)
-                    trial.set_user_attr('recall', 0.0)
-                    trial.set_user_attr('f1', 0.0)
-                    trial.set_user_attr('fpr', 1.0)
+                    # SIMPLE SCORING: Maximize precision with minimum recall constraint
+                    if recall < 0.40:  # Minimum 40% recall required
+                        return -1.0
+                    
+                    # Return precision as objective (we want to maximize it)
+                    return precision
+                            
+                except Exception as e:
+                    print(f"Trial failed: {e}")
                     return -1.0
-                    
-            except Exception as e:
-                print(f"Trial failed: {e}")
-                return -1.0
-        
         return realistic_precision_objective
     
     def run_optimization(self, n_trials=50, timeout_minutes=30):

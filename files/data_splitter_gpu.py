@@ -87,34 +87,30 @@ class GPUPrecisionDataSplitter:
             return False
     
     def create_temporal_splits(self):
-        """Create TEMPORAL splits for fraud detection (most important for time-series fraud data)"""
-        print(f"\n📅 CREATING TEMPORAL DATA SPLITS...")
+        """Create STRATIFIED splits instead of temporal - CRITICAL FIX"""
+        print(f"\n📊 CREATING STRATIFIED DATA SPLITS (FIXED)...")
         print(f"   🚀 GPU Available: {self.gpu_available}")
         
-        # For fraud detection, temporal splits are CRITICAL to prevent data leakage
-        # We simulate temporal order by using the index (assuming data is chronologically ordered)
+        from sklearn.model_selection import train_test_split
         
+        # CRITICAL: Use stratified split to maintain fraud distribution
         total_samples = len(self.X)
         
-        # Use temporal splitting: 60% train, 20% validation, 20% test
-        # This ensures we train on past data and test on future data
-        train_end = int(total_samples * 0.6)
-        val_end = int(total_samples * 0.8)
+        # First split: 80% train+val, 20% test
+        X_temp, X_test, y_temp, y_test = train_test_split(
+            self.X, self.y,
+            test_size=0.2,
+            random_state=42,
+            stratify=self.y  # CRITICAL - maintains fraud ratio
+        )
         
-        print(f"   📊 Temporal split strategy:")
-        print(f"      Train: 0 to {train_end:,} (60%)")
-        print(f"      Validation: {train_end:,} to {val_end:,} (20%)")
-        print(f"      Test: {val_end:,} to {total_samples:,} (20%)")
-        
-        # Create temporal splits
-        X_train = self.X.iloc[:train_end].copy()
-        y_train = self.y.iloc[:train_end].copy()
-        
-        X_val = self.X.iloc[train_end:val_end].copy()
-        y_val = self.y.iloc[train_end:val_end].copy()
-        
-        X_test = self.X.iloc[val_end:].copy()
-        y_test = self.y.iloc[val_end:].copy()
+        # Second split: From 80%, take 75% train (60% total) and 25% val (20% total)
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_temp, y_temp,
+            test_size=0.25,
+            random_state=42,
+            stratify=y_temp  # CRITICAL - maintains fraud ratio
+        )
         
         # Optimize data types for GPU efficiency
         for df in [X_train, X_val, X_test]:
@@ -125,8 +121,10 @@ class GPUPrecisionDataSplitter:
                     elif df[col].dtype == 'int64':
                         df[col] = pd.to_numeric(df[col], downcast='integer')
         
-        for series in [y_train, y_val, y_test]:
-            series = series.astype('int8')
+        # Ensure targets are int8
+        y_train = y_train.astype('int8')
+        y_val = y_val.astype('int8')
+        y_test = y_test.astype('int8')
         
         # Store splits
         self.splits = {
@@ -143,20 +141,25 @@ class GPUPrecisionDataSplitter:
         val_fraud_rate = y_val.mean() * 100
         test_fraud_rate = y_test.mean() * 100
         
-        print(f"   ✅ Temporal splits created:")
+        print(f"   ✅ STRATIFIED splits created:")
         print(f"      Train: {X_train.shape} (fraud: {train_fraud_rate:.3f}%)")
         print(f"      Val:   {X_val.shape} (fraud: {val_fraud_rate:.3f}%)")
         print(f"      Test:  {X_test.shape} (fraud: {test_fraud_rate:.3f}%)")
         
+        # VALIDATION: Ensure all splits have similar fraud rates
+        if abs(train_fraud_rate - test_fraud_rate) > 0.1:
+            print(f"   ⚠️ WARNING: Fraud rates differ! Check stratification")
+        else:
+            print(f"   ✅ Fraud rates consistent across splits")
+        
         # Memory cleanup
-        del X_train, X_val, X_test, y_train, y_val, y_test
         gc.collect()
         
         return True
     
     def apply_robust_sampling(self):
-        """Apply ROBUST sampling with CORRECT parameters (no n_jobs errors)"""
-        print(f"\n⚖️ ROBUST SAMPLING (FIXED PARAMETERS)...")
+        """Apply FIXED sampling with CORRECT parameters"""
+        print(f"\n⚖️ ROBUST SAMPLING (FIXED FOR 1:336 IMBALANCE)...")
         
         if not SAMPLING_AVAILABLE:
             print("   ⚠️ imbalanced-learn not available - using class weighting fallback")
@@ -178,57 +181,21 @@ class GPUPrecisionDataSplitter:
         print(f"      Imbalance ratio: 1:{imbalance_ratio:.0f}")
         
         try:
-            # Choose sampling strategy based on imbalance severity
-            if imbalance_ratio > 500:
-                print("   🎯 EXTREME imbalance - Using conservative SMOTE...")
-                sampler = SMOTE(
-                    sampling_strategy=0.02,  # 2% fraud rate target
-                    k_neighbors=min(5, fraud_count-1),  # Ensure enough neighbors
-                    random_state=42
-                    # ✅ REMOVED n_jobs parameter - this was causing the error!
-                )
-                target_rate = 0.02
-                self.sampling_method = "SMOTE (2%)"
-                
-            elif imbalance_ratio > 200:
-                print("   🎯 HIGH imbalance - Using moderate SMOTE...")
-                sampler = SMOTE(
-                    sampling_strategy=0.05,  # 5% fraud rate target
-                    k_neighbors=min(5, fraud_count-1),
-                    random_state=42
-                    # ✅ REMOVED n_jobs parameter
-                )
-                target_rate = 0.05
-                self.sampling_method = "SMOTE (5%)"
-                
-            elif imbalance_ratio > 100:
-                print("   🎯 MODERATE imbalance - Using BorderlineSMOTE...")
-                sampler = BorderlineSMOTE(
-                    sampling_strategy=0.08,  # 8% fraud rate target
-                    k_neighbors=min(5, fraud_count-1),
-                    m_neighbors=min(10, fraud_count-1),
-                    random_state=42
-                    # ✅ REMOVED n_jobs parameter - BorderlineSMOTE doesn't support it!
-                )
-                target_rate = 0.08
-                self.sampling_method = "BorderlineSMOTE (8%)"
-                
-            else:
-                print("   🎯 BALANCED approach - Using standard SMOTE...")
-                sampler = SMOTE(
-                    sampling_strategy=0.15,  # 15% fraud rate target
-                    k_neighbors=min(5, fraud_count-1),
-                    random_state=42
-                    # ✅ REMOVED n_jobs parameter
-                )
-                target_rate = 0.15
-                self.sampling_method = "SMOTE (15%)"
+            # CRITICAL FIX: Use 5-10% sampling strategy, not 0.02%
+            if fraud_count < 20:
+                print("   ❌ Too few fraud samples for SMOTE - using class weights only")
+                self._apply_class_weighting_fallback()
+                return True
             
-            # Validate we have enough fraud samples for k_neighbors
-            min_neighbors_needed = sampler.k_neighbors if hasattr(sampler, 'k_neighbors') else 5
-            if fraud_count <= min_neighbors_needed:
-                print(f"   ⚠️ Only {fraud_count} fraud samples, need >{min_neighbors_needed} for SMOTE")
-                raise ValueError(f"Insufficient fraud samples for SMOTE")
+            # For your 1:336 imbalance after filtering
+            print("   🎯 Using optimized SMOTE for extreme imbalance...")
+            sampler = SMOTE(
+                sampling_strategy=0.05,  # CRITICAL: 5%, not 0.02%
+                k_neighbors=min(5, fraud_count-1),
+                random_state=42
+            )
+            target_rate = 0.05
+            self.sampling_method = "SMOTE (5% target)"
             
             print(f"   ⚡ Applying {self.sampling_method} sampling...")
             
@@ -265,7 +232,7 @@ class GPUPrecisionDataSplitter:
             
         except Exception as e:
             print(f"   ⚠️ Sampling failed: {e}")
-            print("   🔄 Using class weighting fallback...")
+            print("   📄 Using class weighting fallback...")
             self._apply_class_weighting_fallback()
         
         return True

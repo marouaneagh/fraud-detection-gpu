@@ -76,13 +76,17 @@ class GPUPrecisionFeatureEngineer:
         # Start with copy
         data = self.df.copy()
         
+        # CRITICAL FIX: Create hour features BEFORE filtering
+        if 'step' in data.columns:
+            data = self._create_critical_hour_features(data)
+        
         # CRITICAL: Remove ALL potential leakage features upfront
         print("   🛡️ PREVENTING DATA LEAKAGE...")
         leakage_features = [
             'nameOrig', 'nameDest',        # High-cardinality IDs
             'isFlaggedFraud',             # System flag (leakage)
-            'oldbalanceOrg', 'newbalanceOrig',   # ❌ BALANCE LEAKAGE
-            'oldbalanceDest', 'newbalanceDest'   # ❌ BALANCE LEAKAGE
+            'oldbalanceOrg', 'newbalanceOrig',   # Balance columns
+            'oldbalanceDest', 'newbalanceDest'   # Balance columns
         ]
         
         # Track which leakage features actually exist
@@ -90,36 +94,28 @@ class GPUPrecisionFeatureEngineer:
         if existing_leakage:
             data = data.drop(columns=existing_leakage)
             print(f"      ✅ Removed leakage features: {existing_leakage}")
-        else:
-            print("      ✅ No leakage features found to remove")
         
         # Filter to fraud-prone transactions for better signal-to-noise
         if 'type' in data.columns:
             print("   🎯 Filtering to fraud-prone transaction types...")
             original_size = len(data)
-            # Focus on transaction types most associated with fraud
             fraud_prone_types = ['CASH_OUT', 'TRANSFER']
             available_types = data['type'].unique()
             
-            # Use available fraud-prone types
             valid_types = [t for t in fraud_prone_types if t in available_types]
             if valid_types:
                 data = data[data['type'].isin(valid_types)].copy()
                 print(f"      📉 Reduced from {original_size:,} to {len(data):,} transactions")
                 print(f"      🎯 Using types: {valid_types}")
-            else:
-                print("      ⚠️ No standard fraud-prone types found, keeping all transactions")
         
-        # SAFE feature engineering - only use non-leakage columns
+        # Continue with rest of feature engineering...
         print("   ⚡ Creating SAFE features (no leakage risk)...")
         
         # 1. Amount-based features (SAFE)
         if 'amount' in data.columns:
             data = self._create_safe_amount_features(data)
         
-        # 2. Time-based features (SAFE)
-        if 'step' in data.columns:
-            data = self._create_time_features(data)
+        # 2. Time features already created above
         
         # 3. Transaction type features (SAFE)
         if 'type' in data.columns:
@@ -130,6 +126,7 @@ class GPUPrecisionFeatureEngineer:
         
         # 5. Risk scoring based on patterns (SAFE)
         data = self._create_pattern_risk_features(data)
+        
         
         # Prepare final dataset
         if 'isFraud' not in data.columns:
@@ -229,6 +226,28 @@ class GPUPrecisionFeatureEngineer:
         data['amount_extreme'] = (amount > stats['p99']).astype('int8')
         
         self.amount_stats = stats
+        return data
+    
+    def _create_critical_hour_features(self, data):
+        """Create CRITICAL hour features for fraud detection"""
+        print("      🕐 Creating critical hour features...")
+        
+        if 'step' in data.columns:
+            # Basic hour extraction
+            data['hour'] = (data['step'] % 24).astype('int8')
+            data['day'] = (data['step'] // 24).astype('int16')
+            
+            # CRITICAL: Fraud concentration hours (from your data analysis)
+            data['is_fraud_hour_3_5'] = data['hour'].isin([3, 4, 5]).astype('int8')
+            data['is_hour_3'] = (data['hour'] == 3).astype('int8')
+            data['is_hour_4'] = (data['hour'] == 4).astype('int8')
+            data['is_hour_5'] = (data['hour'] == 5).astype('int8')
+            
+            # Your data shows 22% fraud rate at hour 5!
+            data['is_peak_fraud_hour'] = (data['hour'] == 5).astype('int8')
+            
+            print(f"        ✅ Added critical hour features (hours 3-5 have 16-22% fraud!)")
+        
         return data
     
     def _create_time_features(self, data):
