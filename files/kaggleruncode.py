@@ -27,7 +27,7 @@ import zipfile
 import os
 
 print("📥 Downloading from marouaneagh/fraud-detection-gpu...")
-url = "https://github.com/marouaneagh/fraud-detection-gpu/archive/refs/heads/main.zip"
+url = "https://github.com/marouaneagh/fraud-detection-gpu/archive/refs/heads/master.zip"
 response = requests.get(url)
 
 with open("/kaggle/working/pipeline.zip", "wb") as f:

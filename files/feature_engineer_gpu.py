@@ -272,7 +272,8 @@ class GPUPrecisionFeatureEngineer:
             'DEBIT': 0.3        # Medium fraud risk
         }
         
-        data['type_risk_score'] = data['type'].map(type_risk).fillna(0.5).astype('float32')
+        # 🔧 FIX: Convert categorical to string first, then map
+        data['type_risk_score'] = data['type'].astype(str).map(type_risk).fillna(0.5).astype('float32')
         
         return data
     
