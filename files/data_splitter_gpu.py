@@ -318,7 +318,7 @@ class GPUPrecisionDataSplitter:
         # Create comprehensive metadata
         split_metadata = {
             'sampling_method': self.sampling_method,
-            'split_strategy': 'temporal',
+            'split_strategy': 'stratified',
             'train_shape': self.splits['X_train'].shape,
             'val_shape': self.splits['X_val'].shape,
             'test_shape': self.splits['X_test'].shape,
@@ -329,7 +329,7 @@ class GPUPrecisionDataSplitter:
             'gpu_optimized': True,
             'gpu_used': self.gpu_available,
             'validation_passed': True,
-            'leakage_prevention': 'temporal_splits',
+            'leakage_prevention': 'stratified_splits',
             'data_types': {
                 'features': 'float32',
                 'target': 'int8'
@@ -346,7 +346,7 @@ class GPUPrecisionDataSplitter:
         print(f"   ⚖️ Sampling: {self.sampling_method}")
         
         print(f"\n📋 SPLIT SUMMARY:")
-        print(f"   🎯 Strategy: Temporal splits (no data leakage)")
+        print(f"   🎯 Strategy: Stratified splits (no data leakage)")
         print(f"   📊 Train (original): {self.splits['X_train'].shape}")
         print(f"   📊 Train (balanced): {self.splits['X_train_balanced'].shape}")
         print(f"   📊 Validation: {self.splits['X_val'].shape}")

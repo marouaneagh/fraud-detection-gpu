@@ -104,7 +104,7 @@ class GPUFraudDataLoader:
                 for i, chunk in enumerate(chunk_iter):
                     print(f"   📦 Processing chunk {i+1}...")
                     chunks.append(chunk)
-                    if i >= 10:  # Limit to reasonable size
+                    if i >= 13:  # Limit to reasonable size
                         print("   ⚠️ Large dataset - truncating to first 5M rows")
                         break
                         
@@ -121,7 +121,7 @@ class GPUFraudDataLoader:
                 
                 for i, chunk in enumerate(chunk_iter):
                     chunks.append(chunk)
-                    if i >= 10:
+                    if i >= 13:
                         break
             
             # Combine chunks
