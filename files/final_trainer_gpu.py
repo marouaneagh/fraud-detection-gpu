@@ -344,153 +344,298 @@ class GPUFinalModelTrainer:
             print("✅ Precision is within realistic range for fraud detection")
     
     def create_evaluation_plots(self):
-        """Create comprehensive evaluation plots"""
+        """Create comprehensive evaluation plots with proper saving"""
         if not PLOTTING_AVAILABLE:
-            print("⚠️ Matplotlib not available - skipping plots")
+            print("Warning: Matplotlib not available - skipping plots")
             return None
             
-        print(f"\n📈 CREATING EVALUATION PLOTS...")
+        print(f"\nCreating comprehensive evaluation plots...")
         
         X_test = self.splits['X_test']
         y_test = self.splits['y_test']
         y_test_proba = self.final_model.predict_proba(X_test)[:, 1]
         y_test_pred = (y_test_proba >= self.final_results['metrics']['threshold']).astype(int)
         
-        # Create figure with subplots
-        fig = plt.figure(figsize=(16, 12))
-        gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
+        # Create comprehensive figure with subplots
+        fig = plt.figure(figsize=(20, 16))
+        gs = fig.add_gridspec(4, 3, hspace=0.4, wspace=0.3)
         
-        # Title
-        gpu_status = "🚀 GPU-ACCELERATED" if self.gpu_available else "💻 CPU"
-        fig.suptitle(f'Fraud Detection Model - Final Evaluation ({gpu_status})', 
-                    fontsize=16, fontweight='bold')
+        # Main title
+        gpu_status = "GPU-ACCELERATED" if self.gpu_available else "CPU"
+        fig.suptitle(f'Fraud Detection Model - Complete Performance Analysis ({gpu_status})', 
+                    fontsize=18, fontweight='bold', y=0.98)
         
-        # 1. ROC Curve
+        # 1. ROC Curve with enhanced details
         ax1 = fig.add_subplot(gs[0, 0])
-        fpr, tpr, _ = roc_curve(y_test, y_test_proba)
+        fpr, tpr, roc_thresholds = roc_curve(y_test, y_test_proba)
         auc_roc = roc_auc_score(y_test, y_test_proba)
         
-        ax1.plot(fpr, tpr, color='blue', lw=2, label=f'ROC (AUC = {auc_roc:.3f})')
-        ax1.plot([0, 1], [0, 1], color='red', linestyle='--', alpha=0.5)
-        ax1.set_xlabel('False Positive Rate')
-        ax1.set_ylabel('True Positive Rate')
-        ax1.set_title('ROC Curve')
-        ax1.legend()
+        ax1.plot(fpr, tpr, color='darkblue', lw=3, label=f'ROC Curve (AUC = {auc_roc:.3f})')
+        ax1.plot([0, 1], [0, 1], color='red', linestyle='--', alpha=0.6, lw=2, label='Random Classifier')
+        ax1.set_xlabel('False Positive Rate', fontsize=12)
+        ax1.set_ylabel('True Positive Rate', fontsize=12)
+        ax1.set_title('ROC Curve Analysis', fontsize=14, fontweight='bold')
+        ax1.legend(fontsize=10)
         ax1.grid(True, alpha=0.3)
+        ax1.set_xlim([0.0, 1.0])
+        ax1.set_ylim([0.0, 1.0])
         
         # 2. Precision-Recall Curve
         ax2 = fig.add_subplot(gs[0, 1])
-        precision_vals, recall_vals, _ = precision_recall_curve(y_test, y_test_proba)
+        precision_vals, recall_vals, pr_thresholds = precision_recall_curve(y_test, y_test_proba)
         auc_pr = average_precision_score(y_test, y_test_proba)
+        baseline_precision = y_test.mean()
         
-        ax2.plot(recall_vals, precision_vals, color='green', lw=2, 
+        ax2.plot(recall_vals, precision_vals, color='darkgreen', lw=3, 
                 label=f'PR Curve (AUC = {auc_pr:.3f})')
-        ax2.axhline(y=y_test.mean(), color='red', linestyle='--', alpha=0.5, 
-                   label=f'Random ({y_test.mean():.3f})')
-        ax2.set_xlabel('Recall')
-        ax2.set_ylabel('Precision')
-        ax2.set_title('Precision-Recall Curve')
-        ax2.legend()
+        ax2.axhline(y=baseline_precision, color='red', linestyle='--', alpha=0.6, lw=2,
+                   label=f'Baseline ({baseline_precision:.3f})')
+        ax2.set_xlabel('Recall', fontsize=12)
+        ax2.set_ylabel('Precision', fontsize=12)
+        ax2.set_title('Precision-Recall Curve', fontsize=14, fontweight='bold')
+        ax2.legend(fontsize=10)
         ax2.grid(True, alpha=0.3)
+        ax2.set_xlim([0.0, 1.0])
+        ax2.set_ylim([0.0, 1.0])
         
-        # 3. Confusion Matrix
+        # 3. Enhanced Confusion Matrix with percentages
         ax3 = fig.add_subplot(gs[0, 2])
         cm = confusion_matrix(y_test, y_test_pred)
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax3)
-        ax3.set_title('Confusion Matrix')
-        ax3.set_xlabel('Predicted')
-        ax3.set_ylabel('Actual')
         
-        # 4. Probability Distribution
+        # Create confusion matrix with both counts and percentages
+        cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
+        
+        # Custom annotations combining counts and percentages
+        annotations = np.array([[f'{cm[i,j]:,}\n({cm_percent[i,j]:.1f}%)' 
+                               for j in range(cm.shape[1])] for i in range(cm.shape[0])])
+        
+        sns.heatmap(cm, annot=annotations, fmt='', cmap='Blues', ax=ax3, 
+                   cbar_kws={'label': 'Count'})
+        ax3.set_title('Confusion Matrix\n(Count & Percentage)', fontsize=14, fontweight='bold')
+        ax3.set_xlabel('Predicted Label', fontsize=12)
+        ax3.set_ylabel('True Label', fontsize=12)
+        
+        # 4. Prediction Probability Distribution
         ax4 = fig.add_subplot(gs[1, 0])
-        ax4.hist(y_test_proba[y_test == 0], bins=50, alpha=0.7, label='Legitimate', density=True)
-        ax4.hist(y_test_proba[y_test == 1], bins=50, alpha=0.7, label='Fraud', density=True)
-        ax4.axvline(self.final_results['metrics']['threshold'], color='red', 
-                   linestyle='--', label='Threshold')
-        ax4.set_xlabel('Probability')
-        ax4.set_ylabel('Density')
-        ax4.set_title('Prediction Probability Distribution')
-        ax4.legend()
+        bins = np.linspace(0, 1, 51)
+        ax4.hist(y_test_proba[y_test == 0], bins=bins, alpha=0.7, label='Legitimate', 
+                density=True, color='lightblue', edgecolor='navy')
+        ax4.hist(y_test_proba[y_test == 1], bins=bins, alpha=0.7, label='Fraud', 
+                density=True, color='lightcoral', edgecolor='darkred')
+        ax4.axvline(self.final_results['metrics']['threshold'], color='black', 
+                   linestyle='--', linewidth=3, label=f"Threshold ({self.final_results['metrics']['threshold']:.3f})")
+        ax4.set_xlabel('Prediction Probability', fontsize=12)
+        ax4.set_ylabel('Density', fontsize=12)
+        ax4.set_title('Probability Distribution by Class', fontsize=14, fontweight='bold')
+        ax4.legend(fontsize=10)
         ax4.grid(True, alpha=0.3)
         
-        # 5. Feature Importance (if available)
+        # 5. Feature Importance (Top 20)
         ax5 = fig.add_subplot(gs[1, 1])
         if hasattr(self.final_model, 'feature_importances_'):
-            feature_names = self.splits['X_test'].columns[:15]  # Top 15 features
-            importances = self.final_model.feature_importances_[:15]
+            feature_names = list(self.splits['X_test'].columns)
+            importances = self.final_model.feature_importances_
             
-            indices = np.argsort(importances)[-15:]
-            ax5.barh(range(len(indices)), importances[indices])
-            ax5.set_yticks(range(len(indices)))
-            ax5.set_yticklabels([feature_names[i] for i in indices])
-            ax5.set_xlabel('Feature Importance')
-            ax5.set_title('Top 15 Feature Importances')
+            # Get top 20 features
+            indices = np.argsort(importances)[-20:]
+            top_importances = importances[indices]
+            top_features = [feature_names[i] for i in indices]
+            
+            y_pos = np.arange(len(indices))
+            bars = ax5.barh(y_pos, top_importances, color='skyblue', edgecolor='navy')
+            ax5.set_yticks(y_pos)
+            ax5.set_yticklabels(top_features, fontsize=9)
+            ax5.set_xlabel('Feature Importance', fontsize=12)
+            ax5.set_title('Top 20 Feature Importances', fontsize=14, fontweight='bold')
+            ax5.grid(True, alpha=0.3, axis='x')
+            
+            # Add value labels on bars
+            for i, (bar, val) in enumerate(zip(bars, top_importances)):
+                ax5.text(val + max(top_importances) * 0.01, bar.get_y() + bar.get_height()/2, 
+                        f'{val:.3f}', ha='left', va='center', fontsize=8)
         else:
-            ax5.text(0.5, 0.5, 'Feature Importance\nNot Available', 
-                    ha='center', va='center', transform=ax5.transAxes)
-            ax5.set_title('Feature Importance')
+            ax5.text(0.5, 0.5, 'Feature Importance\nNot Available\n(Model does not support)', 
+                    ha='center', va='center', transform=ax5.transAxes, fontsize=14)
+            ax5.set_title('Feature Importance', fontsize=14, fontweight='bold')
         
         # 6. Threshold Analysis
         ax6 = fig.add_subplot(gs[1, 2])
-        thresholds = np.arange(0.1, 0.9, 0.02)
+        thresholds = np.arange(0.05, 0.95, 0.02)
         precisions = []
         recalls = []
+        f1_scores = []
         
         for thresh in thresholds:
             y_pred_thresh = (y_test_proba >= thresh).astype(int)
             if y_pred_thresh.sum() > 0:
-                precisions.append(precision_score(y_test, y_pred_thresh, zero_division=0))
-                recalls.append(recall_score(y_test, y_pred_thresh, zero_division=0))
+                p = precision_score(y_test, y_pred_thresh, zero_division=0)
+                r = recall_score(y_test, y_pred_thresh, zero_division=0)
+                f1 = f1_score(y_test, y_pred_thresh, zero_division=0)
             else:
-                precisions.append(0)
-                recalls.append(0)
+                p = r = f1 = 0
+            precisions.append(p)
+            recalls.append(r)
+            f1_scores.append(f1)
         
-        ax6.plot(thresholds, precisions, label='Precision', color='blue')
-        ax6.plot(thresholds, recalls, label='Recall', color='orange')
+        ax6.plot(thresholds, precisions, label='Precision', color='blue', linewidth=2)
+        ax6.plot(thresholds, recalls, label='Recall', color='orange', linewidth=2)
+        ax6.plot(thresholds, f1_scores, label='F1-Score', color='green', linewidth=2)
         ax6.axvline(self.final_results['metrics']['threshold'], color='red', 
-                   linestyle='--', label='Optimal')
-        ax6.set_xlabel('Threshold')
-        ax6.set_ylabel('Score')
-        ax6.set_title('Precision-Recall vs Threshold')
-        ax6.legend()
+                   linestyle='--', linewidth=2, label='Optimal Threshold')
+        ax6.set_xlabel('Threshold', fontsize=12)
+        ax6.set_ylabel('Score', fontsize=12)
+        ax6.set_title('Performance vs Threshold', fontsize=14, fontweight='bold')
+        ax6.legend(fontsize=10)
         ax6.grid(True, alpha=0.3)
+        ax6.set_xlim([0.05, 0.95])
+        ax6.set_ylim([0.0, 1.0])
         
-        # 7. Performance Summary Text
-        ax7 = fig.add_subplot(gs[2, :])
-        ax7.axis('off')
+        # 7. Business Metrics Visualization
+        ax7 = fig.add_subplot(gs[2, 0])
+        business = self.final_results['business_metrics']
         
-        # Performance summary
+        # Create business impact bar chart
+        categories = ['True\nPositives', 'False\nPositives', 'False\nNegatives', 'True\nNegatives']
+        values = [business['true_positives'], business['false_positives'], 
+                 business['false_negatives'], business['true_negatives']]
+        colors = ['green', 'orange', 'red', 'lightblue']
+        
+        bars = ax7.bar(categories, values, color=colors, edgecolor='black')
+        ax7.set_ylabel('Count', fontsize=12)
+        ax7.set_title('Business Impact Metrics', fontsize=14, fontweight='bold')
+        ax7.grid(True, alpha=0.3, axis='y')
+        
+        # Add value labels on bars
+        for bar, val in zip(bars, values):
+            ax7.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(values) * 0.01,
+                    f'{val:,}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+        
+        # 8. Cost-Benefit Analysis (Hypothetical)
+        ax8 = fig.add_subplot(gs[2, 1])
+        
+        # Hypothetical costs for demonstration
+        fraud_prevented = business['true_positives'] * 1000  # $1000 per fraud prevented
+        investigation_cost = (business['true_positives'] + business['false_positives']) * 50  # $50 per investigation
+        fraud_missed_cost = business['false_negatives'] * 1000  # $1000 per missed fraud
+        
+        cost_benefit = [fraud_prevented, -investigation_cost, -fraud_missed_cost]
+        labels = ['Fraud\nPrevented', 'Investigation\nCost', 'Missed Fraud\nCost']
+        colors = ['green', 'orange', 'red']
+        
+        bars = ax8.bar(labels, cost_benefit, color=colors, edgecolor='black')
+        ax8.set_ylabel('Cost/Benefit ($)', fontsize=12)
+        ax8.set_title('Hypothetical Cost-Benefit Analysis', fontsize=14, fontweight='bold')
+        ax8.grid(True, alpha=0.3, axis='y')
+        ax8.axhline(y=0, color='black', linestyle='-', linewidth=1)
+        
+        # Add value labels
+        for bar, val in zip(bars, cost_benefit):
+            y_pos = val + (max(cost_benefit) - min(cost_benefit)) * 0.02 * (1 if val >= 0 else -1)
+            ax8.text(bar.get_x() + bar.get_width()/2, y_pos,
+                    f'${val:,.0f}', ha='center', va='bottom' if val >= 0 else 'top', 
+                    fontsize=10, fontweight='bold')
+        
+        # 9. Model Performance Summary Table
+        ax9 = fig.add_subplot(gs[2, 2])
+        ax9.axis('off')
+        
+        # Performance metrics table
         metrics = self.final_results['metrics']
         business = self.final_results['business_metrics']
         
-        summary_text = f"""
-FINAL MODEL PERFORMANCE SUMMARY
-{'='*60}
-Precision: {metrics['precision']:.1%} | Recall: {metrics['recall']:.1%} | F1-Score: {metrics['f1']:.1%}
-AUC-ROC: {metrics['auc_roc']:.3f} | AUC-PR: {metrics['auc_pr']:.3f} | Threshold: {metrics['threshold']:.3f}
-
-BUSINESS METRICS:
-• True Positives: {business['true_positives']:,} fraud cases correctly identified
-• False Positives: {business['false_positives']:,} legitimate transactions flagged
-• False Negatives: {business['false_negatives']:,} fraud cases missed  
-• False Positive Rate: {business['false_positive_rate']:.2%}
-
-MODEL CONFIGURATION:
-• Algorithm: XGBoost Classifier | Trees: {self.final_model.n_estimators}
-• Training: {"GPU-accelerated" if self.gpu_available else "CPU-optimized"}
-• Max Depth: {self.best_params.get('max_depth', 'default')} | Learning Rate: {self.best_params.get('learning_rate', 'default'):.3f}
-        """
+        table_data = [
+            ['Metric', 'Value', 'Interpretation'],
+            ['Precision', f"{metrics['precision']:.1%}", 'Fraud detection accuracy'],
+            ['Recall', f"{metrics['recall']:.1%}", 'Fraud coverage'],
+            ['F1-Score', f"{metrics['f1']:.1%}", 'Overall balance'],
+            ['AUC-ROC', f"{metrics['auc_roc']:.3f}", 'Classification quality'],
+            ['AUC-PR', f"{metrics['auc_pr']:.3f}", 'Precision-recall balance'],
+            ['FPR', f"{business['false_positive_rate']:.2%}", 'False alarm rate'],
+            ['Threshold', f"{metrics['threshold']:.3f}", 'Optimal cutoff']
+        ]
         
-        ax7.text(0.02, 0.95, summary_text, transform=ax7.transAxes, fontsize=10,
-                verticalalignment='top', fontfamily='monospace',
-                bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgray', alpha=0.8))
+        table = ax9.table(cellText=table_data[1:], colLabels=table_data[0], 
+                         cellLoc='left', loc='center', bbox=[0, 0, 1, 1])
+        table.auto_set_font_size(False)
+        table.set_fontsize(9)
+        table.scale(1.2, 2)
         
-        # Save plot
+        # Style the table
+        for i, key in enumerate(table_data[0]):
+            table[(0, i)].set_facecolor('#4CAF50')
+            table[(0, i)].set_text_props(weight='bold', color='white')
+        
+        ax9.set_title('Performance Summary', fontsize=14, fontweight='bold', pad=20)
+        
+        # 10. Training Progress/Optimization History
+        ax10 = fig.add_subplot(gs[3, :])
+        
+        # Load optimization history if available
+        try:
+            history_file = f"{self.checkpoint_dir}/04_optimization_history_gpu.pkl"
+            if os.path.exists(history_file):
+                with open(history_file, 'rb') as f:
+                    history = pickle.load(f)
+                
+                if 'trials' in history and len(history['trials']) > 0:
+                    trial_numbers = range(1, len(history['trials']) + 1)
+                    scores = [trial['value'] for trial in history['trials']]
+                    
+                    ax10.plot(trial_numbers, scores, 'o-', color='darkblue', linewidth=2, markersize=4)
+                    ax10.axhline(y=max(scores), color='red', linestyle='--', alpha=0.7, 
+                               label=f'Best Score: {max(scores):.3f}')
+                    ax10.set_xlabel('Optimization Trial', fontsize=12)
+                    ax10.set_ylabel('Objective Score', fontsize=12)
+                    ax10.set_title('Hyperparameter Optimization Progress', fontsize=14, fontweight='bold')
+                    ax10.grid(True, alpha=0.3)
+                    ax10.legend(fontsize=10)
+                else:
+                    ax10.text(0.5, 0.5, 'Optimization History\nNot Available', 
+                             ha='center', va='center', transform=ax10.transAxes, fontsize=16)
+            else:
+                ax10.text(0.5, 0.5, 'Optimization History\nFile Not Found', 
+                         ha='center', va='center', transform=ax10.transAxes, fontsize=16)
+        except Exception as e:
+            ax10.text(0.5, 0.5, f'Error Loading\nOptimization History:\n{str(e)}', 
+                     ha='center', va='center', transform=ax10.transAxes, fontsize=12)
+        
+        ax10.set_title('Hyperparameter Optimization Progress', fontsize=14, fontweight='bold')
+        
+        # Save the comprehensive plot
         plot_path = f"{self.checkpoint_dir}/05_final_evaluation_plots.png"
-        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+        plt.savefig(plot_path, dpi=300, bbox_inches='tight', facecolor='white')
+        
+        # Also save individual plots for thesis use
+        individual_plots_dir = f"{self.checkpoint_dir}/individual_plots"
+        os.makedirs(individual_plots_dir, exist_ok=True)
+        
+        # Save ROC curve separately
+        plt.figure(figsize=(8, 6))
+        plt.plot(fpr, tpr, color='darkblue', lw=3, label=f'ROC Curve (AUC = {auc_roc:.3f})')
+        plt.plot([0, 1], [0, 1], color='red', linestyle='--', alpha=0.6, lw=2)
+        plt.xlabel('False Positive Rate', fontsize=14)
+        plt.ylabel('True Positive Rate', fontsize=14)
+        plt.title('ROC Curve', fontsize=16, fontweight='bold')
+        plt.legend(fontsize=12)
+        plt.grid(True, alpha=0.3)
+        plt.savefig(f"{individual_plots_dir}/roc_curve.png", dpi=300, bbox_inches='tight')
         plt.close()
         
-        print(f"   ✅ Evaluation plots saved: {plot_path}")
+        # Save confusion matrix separately
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm, annot=annotations, fmt='', cmap='Blues', 
+                   cbar_kws={'label': 'Count'})
+        plt.title('Confusion Matrix', fontsize=16, fontweight='bold')
+        plt.xlabel('Predicted Label', fontsize=14)
+        plt.ylabel('True Label', fontsize=14)
+        plt.savefig(f"{individual_plots_dir}/confusion_matrix.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        plt.close('all')  # Close the main figure
+        
+        print(f"   Comprehensive evaluation plots saved: {plot_path}")
+        print(f"   Individual plots saved in: {individual_plots_dir}")
+        
         return plot_path
     
     def save_final_model(self, output_dir='/kaggle/working'):
