@@ -82,9 +82,9 @@ class GPUHyperparameterOptimizer:
             print(f"⚠️ GPU XGBoost test failed: {e}")
             return False
         
-    def load_checkpoint(self):
-        """Load data splits from Step 3"""
-        print("📄 STEP 4: REALISTIC HYPERPARAMETER OPTIMIZATION")
+   def load_checkpoint(self):
+        """Load features from Step 3"""
+        print("STEP 4: HYPERPARAMETER OPTIMIZATION")
         print("=" * 60)
         
         try:
@@ -92,28 +92,27 @@ class GPUHyperparameterOptimizer:
             splits_path = f"{self.checkpoint_dir}/03_data_splits_gpu.pkl"
             with open(splits_path, 'rb') as f:
                 self.splits = pickle.load(f)
-            print(f"✅ Loaded data splits")
+            print(f"Loaded data splits: {self.splits['X_train'].shape}")
             
-            # Load metadata
+            # Load metadata to get scale_pos_weight
             metadata_path = f"{self.checkpoint_dir}/03_split_metadata_gpu.pkl"
             with open(metadata_path, 'rb') as f:
-                self.split_metadata = pickle.load(f)
+                metadata = pickle.load(f)
             
-            sampling_method = self.split_metadata.get('sampling_method', 'Unknown')
-            print(f"✅ Sampling method: {sampling_method}")
+            # Extract scale_pos_weight from metadata
+            self.scale_pos_weight = metadata.get('scale_pos_weight', 100.0)  # Default fallback
+            print(f"Loaded scale_pos_weight: {self.scale_pos_weight}")
             
-            # Validate splits
-            print(f"   📊 Train (balanced): {self.split_metadata['train_balanced_shape']}")
-            print(f"   📊 Validation: {self.split_metadata['val_shape']}")
-            print(f"   📊 Balanced fraud rate: {self.split_metadata['balanced_fraud_rate']*100:.1f}%")
-            print(f"   🚀 GPU Available: {self.gpu_available}")
+            # Check GPU availability
+            self.gpu_available = self._check_gpu()
+            print(f"GPU Available: {self.gpu_available}")
             
             return True
             
         except Exception as e:
-            print(f"❌ ERROR loading checkpoint: {e}")
+            print(f"ERROR loading checkpoint: {e}")
             return False
-    
+        
     def create_realistic_objective_function(self):
         """FIXED objective function for extreme imbalance"""
         
@@ -169,7 +168,7 @@ class GPUHyperparameterOptimizer:
                             'reg_lambda': trial.suggest_float('reg_lambda', 0.1, 1.0),
                             
                             # CRITICAL FIX: Higher range for CPU too
-                            'scale_pos_weight': trial.suggest_float('scale_pos_weight', 50, 150)
+                            'scale_pos_weight': self.scale_pos_weight
                         }
                     
                     # Train model
