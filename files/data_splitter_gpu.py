@@ -158,82 +158,29 @@ class GPUPrecisionDataSplitter:
         return True
     
     def apply_robust_sampling(self):
-        """Apply FIXED sampling with CORRECT parameters"""
-        print(f"\n⚖️ ROBUST SAMPLING (FIXED FOR 1:336 IMBALANCE)...")
+        """Apply class weighting instead of SMOTE"""
+        print(f"🎯 USING CLASS WEIGHTING (NO SYNTHETIC DATA)...")
         
-        if not SAMPLING_AVAILABLE:
-            print("   ⚠️ imbalanced-learn not available - using class weighting fallback")
-            self._apply_class_weighting_fallback()
-            return True
-        
-        # Get class distribution
-        X_train = self.splits['X_train']
+        X_train = self.splits['X_train'] 
         y_train = self.splits['y_train']
         
         fraud_count = y_train.sum()
-        total_count = len(y_train)
-        fraud_ratio = fraud_count / total_count
-        imbalance_ratio = (total_count - fraud_count) / fraud_count
+        legit_count = len(y_train) - fraud_count
         
-        print(f"   📊 Original distribution:")
-        print(f"      Fraud: {fraud_count:,} ({fraud_ratio*100:.3f}%)")
-        print(f"      Total: {total_count:,}")
-        print(f"      Imbalance ratio: 1:{imbalance_ratio:.0f}")
+        # Calculate scale_pos_weight for XGBoost
+        scale_pos_weight = legit_count / fraud_count
         
-        try:
-            # CRITICAL FIX: Use 5-10% sampling strategy, not 0.02%
-            if fraud_count < 20:
-                print("   ❌ Too few fraud samples for SMOTE - using class weights only")
-                self._apply_class_weighting_fallback()
-                return True
-            
-            # For your 1:336 imbalance after filtering
-            print("   🎯 Using optimized SMOTE for extreme imbalance...")
-            sampler = SMOTE(
-                sampling_strategy=0.05,  # CRITICAL: 5%, not 0.02%
-                k_neighbors=min(5, fraud_count-1),
-                random_state=42
-            )
-            target_rate = 0.05
-            self.sampling_method = "SMOTE (5% target)"
-            
-            print(f"   ⚡ Applying {self.sampling_method} sampling...")
-            
-            # Apply sampling
-            X_train_balanced, y_train_balanced = sampler.fit_resample(X_train, y_train)
-            
-            # Convert back to appropriate data types
-            if isinstance(X_train_balanced, np.ndarray):
-                X_train_balanced = pd.DataFrame(
-                    X_train_balanced, 
-                    columns=X_train.columns
-                ).astype('float32')
-            else:
-                X_train_balanced = X_train_balanced.astype('float32')
-                
-            if isinstance(y_train_balanced, np.ndarray):
-                y_train_balanced = pd.Series(y_train_balanced, dtype='int8')
-            else:
-                y_train_balanced = y_train_balanced.astype('int8')
-            
-            # Store balanced data
-            self.splits['X_train_balanced'] = X_train_balanced
-            self.splits['y_train_balanced'] = y_train_balanced
-            
-            # Report results
-            new_fraud_count = y_train_balanced.sum()
-            new_total = len(y_train_balanced)
-            new_fraud_ratio = new_fraud_count / new_total
-            
-            print(f"   ✅ SAMPLING SUCCESSFUL:")
-            print(f"      New distribution: {new_fraud_count:,} fraud / {new_total:,} total ({new_fraud_ratio*100:.1f}%)")
-            print(f"      Fraud samples added: +{new_fraud_count - fraud_count:,}")
-            print(f"      Total samples added: +{new_total - total_count:,}")
-            
-        except Exception as e:
-            print(f"   ⚠️ Sampling failed: {e}")
-            print("   📄 Using class weighting fallback...")
-            self._apply_class_weighting_fallback()
+        # Store original training data (no synthetic samples)
+        self.splits['X_train_balanced'] = X_train.copy()
+        self.splits['y_train_balanced'] = y_train.copy()
+        
+        # Store class weight for XGBoost
+        self.scale_pos_weight = min(scale_pos_weight, 500)  # Cap at 500
+        
+        self.sampling_method = f"Class Weighting (scale_pos_weight={self.scale_pos_weight:.1f})"
+        
+        print(f"   ✅ Class weighting: {self.scale_pos_weight:.1f}")
+        print(f"   📊 Natural fraud rate maintained: {y_train.mean()*100:.3f}%")
         
         return True
     
