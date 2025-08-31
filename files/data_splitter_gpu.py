@@ -27,7 +27,7 @@ except ImportError:
     GPU_AVAILABLE = False
 
 class GPUPrecisionDataSplitter:
-    """ROBUST data splitting with PROPER sampling (no parameter errors)"""
+    """ROBUST data splitting with PROPER  (no parameter errors)"""
     
     def __init__(self, checkpoint_dir='/kaggle/working'):
         self.checkpoint_dir = checkpoint_dir
@@ -35,7 +35,7 @@ class GPUPrecisionDataSplitter:
         self.y = None
         self.feature_metadata = None
         self.splits = {}
-        self.sampling_method = None
+        self._method = None
         self.gpu_available = GPU_AVAILABLE and self._check_gpu()
         
     def _check_gpu(self):
@@ -265,6 +265,7 @@ class GPUPrecisionDataSplitter:
         # Create comprehensive metadata
         split_metadata = {
             'sampling_method': self.sampling_method,
+            'scale_pos_weight': self.scale_pos_weight,
             'split_strategy': 'stratified',
             'train_shape': self.splits['X_train'].shape,
             'val_shape': self.splits['X_val'].shape,
