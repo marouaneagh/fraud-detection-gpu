@@ -147,7 +147,7 @@ class GPUHyperparameterOptimizer:
                             'reg_lambda': trial.suggest_float('reg_lambda', 0.1, 2.0),
                             
                             # CRITICAL FIX: Much higher scale_pos_weight for extreme imbalance
-                            'scale_pos_weight': trial.suggest_float('scale_pos_weight', 50, 200)
+                            'scale_pos_weight': self.scale_pos_weight
                         }
                     else:
                         # CPU fallback parameters
