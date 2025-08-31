@@ -6,6 +6,7 @@ import numpy as np
 import pickle
 import gc
 import os
+from fraud_evaluator import GPUFraudEvaluator
 from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
@@ -787,8 +788,18 @@ def main():
             return False
         
         # Create visualizations
-        trainer.create_evaluation_plots()
+        evaluator = GPUFraudEvaluator(output_dir=f"{trainer.checkpoint_dir}/individual_plots")
+
+        eval_results = evaluator.evaluate_and_plot(
+            trainer.final_model,
+            trainer.splits['X_test'],
+            trainer.splits['y_test'],
+            feature_names=list(trainer.splits['X_test'].columns),
+            threshold=optimal_threshold
+        )
         
+        trainer.final_results['plots'] = eval_results['plots']
+                
         # Save everything
         trainer.save_final_model()
         
