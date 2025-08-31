@@ -82,36 +82,36 @@ class GPUHyperparameterOptimizer:
             print(f"⚠️ GPU XGBoost test failed: {e}")
             return False
         
-   def load_checkpoint(self):
-        """Load features from Step 3"""
-        print("STEP 4: HYPERPARAMETER OPTIMIZATION")
-        print("=" * 60)
-        
-        try:
-            # Load data splits
-            splits_path = f"{self.checkpoint_dir}/03_data_splits_gpu.pkl"
-            with open(splits_path, 'rb') as f:
-                self.splits = pickle.load(f)
-            print(f"Loaded data splits: {self.splits['X_train'].shape}")
+    def load_checkpoint(self):
+            """Load features from Step 3"""
+            print("STEP 4: HYPERPARAMETER OPTIMIZATION")
+            print("=" * 60)
             
-            # Load metadata to get scale_pos_weight
-            metadata_path = f"{self.checkpoint_dir}/03_split_metadata_gpu.pkl"
-            with open(metadata_path, 'rb') as f:
-                metadata = pickle.load(f)
-            
-            # Extract scale_pos_weight from metadata
-            self.scale_pos_weight = metadata.get('scale_pos_weight', 100.0)  # Default fallback
-            print(f"Loaded scale_pos_weight: {self.scale_pos_weight}")
-            
-            # Check GPU availability
-            self.gpu_available = self._check_gpu()
-            print(f"GPU Available: {self.gpu_available}")
-            
-            return True
-            
-        except Exception as e:
-            print(f"ERROR loading checkpoint: {e}")
-            return False
+            try:
+                # Load data splits
+                splits_path = f"{self.checkpoint_dir}/03_data_splits_gpu.pkl"
+                with open(splits_path, 'rb') as f:
+                    self.splits = pickle.load(f)
+                print(f"Loaded data splits: {self.splits['X_train'].shape}")
+                
+                # Load metadata to get scale_pos_weight
+                metadata_path = f"{self.checkpoint_dir}/03_split_metadata_gpu.pkl"
+                with open(metadata_path, 'rb') as f:
+                    metadata = pickle.load(f)
+                
+                # Extract scale_pos_weight from metadata
+                self.scale_pos_weight = metadata.get('scale_pos_weight', 100.0)  # Default fallback
+                print(f"Loaded scale_pos_weight: {self.scale_pos_weight}")
+                
+                # Check GPU availability
+                self.gpu_available = self._check_gpu()
+                print(f"GPU Available: {self.gpu_available}")
+                
+                return True
+                
+            except Exception as e:
+                print(f"ERROR loading checkpoint: {e}")
+                return False
         
     def create_realistic_objective_function(self):
         """FIXED objective function for extreme imbalance"""
